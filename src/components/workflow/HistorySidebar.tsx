@@ -9,7 +9,8 @@ import {
     ChevronRight, 
     History,
     TerminalSquare,
-    X 
+    X,
+    AlertCircle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkflowStore } from "@/store/workflowStore";
@@ -40,7 +41,6 @@ const StatusBadge = ({ status }: { status: RunStatus }) => {
 };
 
 export default function HistorySidebar() {
-    // toggleHistory to actions
     const { isHistoryOpen, history, workflowId, loadHistory, toggleHistory } = useWorkflowStore();
     const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +56,45 @@ export default function HistorySidebar() {
         }
     }, [isHistoryOpen, workflowId, loadHistory]);
 
+    // Friendly Error Logic
+    const getFriendlyErrorMessage = (run: any) => {
+        // 1. Check if a specific node failed
+        const failedNode = run.nodeExecutions?.find((n: any) => 
+            n.status?.toLowerCase() === 'failed'
+        );
+        
+        if (failedNode) {
+            return (
+                <span>
+                    The <span className="font-bold text-red-300">{failedNode.nodeLabel}</span> node encountered an error.
+                    <br/>
+                    <span className="opacity-70">Please check your inputs and try again.</span>
+                </span>
+            );
+        }
+
+        // 2. Fallback to system error
+        const systemError = run.errorMessage || run.error;
+        if (systemError && systemError !== "Unknown system error occurred") {
+             return (
+                <span>
+                    {systemError}
+                    <br/>
+                    <span className="opacity-70">Please review the workflow configuration.</span>
+                </span>
+            );
+        }
+
+        // 3. Generic Fallback
+        return (
+            <span>
+                The <span className="font-bold text-red-300">Gemini / LLM Node</span> failed to process.
+                <br/>
+                <span className="opacity-70">This usually happens due to connection issues or invalid prompts. Please try again.</span>
+            </span>
+        );
+    };
+
     if (!isHistoryOpen) return null;
 
     return (
@@ -70,7 +109,6 @@ export default function HistorySidebar() {
                 <div className="flex items-center gap-3">
                     <span className="text-[10px] text-white/40">{history.length} Runs</span>
                     
-                    {/* NEW: Close Button */}
                     <button 
                         onClick={toggleHistory}
                         className="p-1 hover:bg-white/10 rounded-md transition-colors text-white/50 hover:text-white"
@@ -122,11 +160,9 @@ export default function HistorySidebar() {
                                 <StatusBadge status={run.status} />
                             </div>
 
-                            {/* Bottom Row: Scope + Duration */}
+                            {/* Bottom Row: Duration Only (Chain Removed) */}
                             <div className="pl-6 flex items-center gap-3 text-[10px] text-white/40 font-medium">
-                                <span className="bg-white/5 px-1.5 py-0.5 rounded text-white/60">
-                                    {run.triggerType}
-                                </span>
+                                {/* REMOVED THE TRIGGER TYPE BADGE HERE */}
                                 <span>{run.duration}</span>
                                 {run.nodeExecutions?.length > 0 && (
                                     <span>• {run.nodeExecutions.length} nodes</span>
@@ -137,12 +173,28 @@ export default function HistorySidebar() {
                         {/* Expanded Tree View */}
                         {expandedRunId === run.id && (
                             <div className="mt-2 ml-2 pl-3 border-l-2 border-white/5 space-y-3 pb-2 animate-in slide-in-from-top-1 duration-200">
+                                
+                                {/* ERROR BOX (User Friendly) */}
+                                {run.status === 'failed' && (
+                                    <div className="relative group/error mb-3 mr-2">
+                                        <div className="absolute -left-[14px] top-2.5 w-3 h-px bg-red-500/30"></div>
+                                        <div className="flex flex-col gap-1 p-2.5 bg-red-950/30 border border-red-500/20 rounded-md">
+                                            <div className="flex items-center gap-2 text-red-400 mb-0.5">
+                                                <AlertCircle size={13} />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider">Workflow Failed</span>
+                                            </div>
+                                            <div className="text-[11px] text-red-200/90 leading-relaxed font-medium">
+                                                {getFriendlyErrorMessage(run)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Node List */}
                                 {(run.nodeExecutions || []).map((node, idx) => (
                                     <div key={idx} className="relative group/node">
-                                        {/* Tree Branch Line */}
                                         <div className="absolute -left-[14px] top-2.5 w-3 h-px bg-white/10"></div>
                                         
-                                        {/* Node Header Row */}
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-[11px] font-mono text-white/90">
                                                 {node.nodeLabel}
@@ -153,17 +205,14 @@ export default function HistorySidebar() {
                                             </span>
                                         </div>
 
-                                        {/* Details Block (Error or Output) */}
                                         <div className="pl-0 text-[10px] font-mono space-y-1">
-                                            {/* Error Message */}
                                             {node.errorMessage && (
-                                                <div className="flex items-start gap-2 text-red-400 bg-red-950/20 p-1.5 rounded border border-red-500/20">
-                                                    <span className="shrink-0">└─ Error:</span>
+                                                <div className="flex items-start gap-2 text-red-400 bg-red-950/20 p-1.5 rounded border border-red-500/20 opacity-80">
+                                                    <span className="shrink-0">└─ Log:</span>
                                                     <span className="break-words leading-tight">{node.errorMessage}</span>
                                                 </div>
                                             )}
 
-                                            {/* Output Data */}
                                             {node.outputData && (node.outputData as any).text && (
                                                 <div className="flex items-start gap-2 text-white/50">
                                                     <span className="shrink-0 text-white/30">└─ Output:</span>

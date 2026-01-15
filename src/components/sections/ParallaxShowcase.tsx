@@ -16,7 +16,6 @@ const ParallaxShowcase = () => {
 
   const calcTransform = (image: ParallaxImage) => {
     // 2. Mobile Logic: Force "Dead Center" alignment
-    // We ignore mouse/scroll movement on mobile to prevent jitter and keep them visible.
     if (isMobile) {
       return 'translate(-50%, -50%)';
     }
@@ -93,7 +92,6 @@ const ParallaxShowcase = () => {
             }}
           />
           
-          {/* 3. FIX: Removed "!isMobile" check so they render on phone */}
           <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
             {PARALLAX.map((image, idx) => (
               <img
