@@ -117,7 +117,7 @@ export default function EditorPage() {
             <div className="flex flex-1 h-full overflow-hidden pt-0">
                 
                 {/* 1. LEFT SIDEBAR (Node Registry) */}
-                <Sidebar defaultCollapsed={false}>
+                <Sidebar defaultCollapsed={true}>
                     <SidebarNodeList />
                 </Sidebar>
 
