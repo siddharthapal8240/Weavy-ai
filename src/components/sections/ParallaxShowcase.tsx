@@ -6,14 +6,22 @@ import { PARALLAX } from './data';
 import type { ParallaxImage } from './types';
 import useMediaQuery from '@/hooks/useMediaQuery';
 
-// Parallax composition with mouse-responsive images
 const ParallaxShowcase = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScrollProgress();
   const { mousePos, handleMouseMove, handleMouseLeave } = useMousePosition(sectionRef);
+  
+  // 1. Detect Mobile
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const calcTransform = (image: ParallaxImage) => {
+    // 2. Mobile Logic: Force "Dead Center" alignment
+    // We ignore mouse/scroll movement on mobile to prevent jitter and keep them visible.
+    if (isMobile) {
+      return 'translate(-50%, -50%)';
+    }
+
+    // Desktop Logic: Standard Parallax
     const xOffset = image.baseX + scrollY * image.scrollMultiplier[0];
     const yOffset = image.baseY + scrollY * image.scrollMultiplier[1];
     const mouseX = mousePos.x * image.mouseMultiplier;
@@ -77,22 +85,36 @@ const ParallaxShowcase = () => {
             src="https://cdn.prod.website-files.com/681b040781d5b5e278a69989/682ee1e4abc8a6ba31b611d5_spaceship.avif"
             alt="Spaceship"
             className="absolute w-[68%] h-auto object-contain z-10"
-            style={{ left: '16%', top: '1%' }}
+            // If you want the spaceship centered on mobile too, add similar logic here:
+            style={{ 
+              left: isMobile ? '50%' : '16%', 
+              top: isMobile ? '22.8%' : '1%',
+              transform: isMobile ? 'translate(-50%, -50%)' : 'none' 
+            }}
           />
           
-          {!isMobile && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-              {PARALLAX.map((image, idx) => (
-                <img
-                  key={idx}
-                  src={image.src}
-                  alt={image.alt}
-                  className={image.className}
-                  style={{ transform: calcTransform(image) }}
-                />
-              ))}
-            </div>
-          )}
+          {/* 3. FIX: Removed "!isMobile" check so they render on phone */}
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            {PARALLAX.map((image, idx) => (
+              <img
+                key={idx}
+                src={image.src}
+                alt={image.alt}
+                className={image.className}
+                style={{ 
+                  transform: calcTransform(image),
+                  // 4. Mobile Overrides: Force position to absolute center
+                  left: isMobile ? '50%' : undefined,
+                  top: isMobile ? '33%' : undefined,
+                  // Reset any desktop-specific offsets
+                  right: isMobile ? 'auto' : undefined,
+                  bottom: isMobile ? 'auto' : undefined,
+                  // Optional: Scale down slightly on mobile if they are huge
+                  maxWidth: isMobile ? '80%' : undefined 
+                }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>

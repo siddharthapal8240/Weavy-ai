@@ -151,7 +151,12 @@ export default function WorkflowTransition() {
 
   const toggleX = useTransform(scrollYProgress, [0.2, 0.3], [0, 24]);
   const bgOpacity = useTransform(scrollYProgress, [0.2, 0.3], [0, 1]);
+
+  // --- 1. Background Nodes Logic (Kept EXACTLY as in your code) ---
   const yFloating = useTransform(scrollYProgress, [0, 0.4], [0, -150]);
+
+  // --- 2. Prompt & Output Logic (Updated for High Speed Parallax) ---
+  const mainEntryY = useTransform(scrollYProgress, [0, 0.25], [200, 0]);
 
   const smoothSpring = { type: "spring", stiffness: 45, damping: 18 } as const;
 
@@ -199,10 +204,13 @@ export default function WorkflowTransition() {
         {/* --- CANVAS AREA --- */}
         <div className="relative w-full max-w-[1400px] mx-auto flex-1 p-4">
           <div className="relative w-full h-[600px] md:h-[700px]">
-            {/* === 1. PROMPT NODE === */}
+            
+            {/* === 1. PROMPT NODE (Updated Animation) === */}
             {promptNodeData && (
               <motion.div
                 layout
+                // Added High Speed Parallax style
+                style={{ y: mainEntryY }}
                 initial={false}
                 animate={
                   isMobile
@@ -210,27 +218,22 @@ export default function WorkflowTransition() {
                         // MOBILE LOGIC: Side-by-Side Layout
                         top: isAppMode ? "20%" : "5%",
                         left: isAppMode ? "0%" : "2%",
-                        width: isAppMode ? "35%" : "46%", // Unscrolled: ~Half width. Scrolled: Smaller col.
+                        width: isAppMode ? "35%" : "46%",
                         height: isAppMode ? "250px" : "auto",
                         zIndex: 30,
                       }
                     : {
                         // DESKTOP LOGIC
                         top: isAppMode ? "0%" : promptNodeData.position.top,
-
                         left: isAppMode ? "16%" : promptNodeData.position.left,
-
                         width: isAppMode ? "26%" : promptNodeData.size.width,
-
                         height: isAppMode ? "440px" : "auto",
-
                         zIndex: 30,
                       }
                 }
                 transition={smoothSpring}
                 className="absolute flex flex-col"
               >
-                {/* TOP BOX: ALWAYS DUAL TONE (Yellow Header, White/Beige Body) */}
                 <motion.div
                   layout
                   className={`
@@ -238,7 +241,7 @@ export default function WorkflowTransition() {
                     ${isAppMode ? "mb-2 md:mb-4" : ""}
                   `}
                   animate={{
-                    backgroundColor: isAppMode ? "#EFEFDC" : "#FFFFFF",
+                    backgroundColor: isAppMode ? "#EFEFDC" : "#EFEFDC",
                   }}
                 >
                   <div
@@ -278,6 +281,8 @@ export default function WorkflowTransition() {
             {outputNodeData && (
               <motion.div
                 layout
+                // Added High Speed Parallax style
+                style={{ y: mainEntryY }}
                 initial={false}
                 animate={
                   isMobile
@@ -293,17 +298,12 @@ export default function WorkflowTransition() {
                     : {
                         // DESKTOP LOGIC
                         top: isAppMode ? "0%" : outputNodeData.position.top,
-
                         left: isAppMode ? "44%" : "auto",
-
                         right: isAppMode
                           ? "0%"
                           : outputNodeData.position.right || "auto",
-
                         width: isAppMode ? "39%" : outputNodeData.size.width,
-
                         height: isAppMode ? "390px" : "auto",
-
                         zIndex: 30,
                       }
                 }
@@ -336,7 +336,7 @@ export default function WorkflowTransition() {
                   <FloatingNode
                     key={`float-${i}`}
                     node={node}
-                    y={yFloating}
+                    y={yFloating} // Using original yFloating
                     isMobile={isMobile}
                     index={i}
                   />
@@ -349,7 +349,7 @@ export default function WorkflowTransition() {
   );
 }
 
-// --- FLOATING NODE COMPONENT ---
+// --- FLOATING NODE COMPONENT  ---
 function FloatingNode({
   node,
   y,
