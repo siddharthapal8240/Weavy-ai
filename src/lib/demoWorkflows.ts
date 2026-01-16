@@ -22,7 +22,7 @@ export const DEMO_WORKFLOWS = [
                         "status": "success",
                         "inputType": "upload",
                         "file": {
-                            "url": "https://pub-e8fef8c0e03b44acb340577811800829.r2.dev/7355d846500a4d50aa33e33317c1d69f/c8fcbf653f8547a7ad8d4ede5eb810a6/b80afbdd846c4e4eb4c77cd93fb16d12.webp",
+                            "url": "https://rukminim2.flixcart.com/image/832/832/xif0q/headphone/v/a/e/-original-imaguggqkr2cjf3r.jpeg?q=70&crop=false",
                             "name": "product-photo.webp",
                             "type": "image/webp"
                         }
@@ -100,7 +100,7 @@ export const DEMO_WORKFLOWS = [
                         "label": "Video Input",
                         "status": "success",
                         "file": {
-                            "url": "https://pub-e8fef8c0e03b44acb340577811800829.r2.dev/7355d846500a4d50aa33e33317c1d69f/74d5ae906dce44e38a0dd64f0021bf76/6ffe523deb0846b0a9c92a5adbe0887f.mp4",
+                            "url": "https://res.cloudinary.com/drgvse4xb/video/upload/v1768575379/Video-356_aeeh0v.mp4",
                             "name": "Video-303.mp4",
                             "type": "video/mp4"
                         }
