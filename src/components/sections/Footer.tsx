@@ -186,7 +186,7 @@ const Footer = () => {
 
       {/* CTA */}
       <Link
-        href="/workflow"
+        href="/workflows"
         className="
     hidden md:flex
     group
