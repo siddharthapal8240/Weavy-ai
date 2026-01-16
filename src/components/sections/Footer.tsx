@@ -100,7 +100,7 @@ const Footer = () => {
               className="h-[32px] w-auto"
             />
             <Link
-              href="/workflow"
+              href="/workflows"
               className="bg-[#f7ff9e] text-black py-2.5 px-7 rounded-md text-[14px] transition-all hover:scale-[1.02] active:scale-95"
             >
               START NOW
