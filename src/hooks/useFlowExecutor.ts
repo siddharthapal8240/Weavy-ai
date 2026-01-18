@@ -31,7 +31,7 @@ export function useFlowExecutor() {
                 })
             );
 
-            // --- 2. CHECK IF EXECUTION IS ALLOWED (Selection Logic) ---
+            // --- 2. CHECK IF EXECUTION IS ALLOWED---
             const shouldExecute = allowedNodes === null || allowedNodes.has(nodeId);
 
             if (!shouldExecute) {
@@ -167,7 +167,24 @@ export function useFlowExecutor() {
         
         if (!workflowId) return;
 
+        // --- VALIDATION LOGIC ---
         if (scope === 'partial' || scope === 'single') {
+            
+            // A. Check if ONLY static inputs are selected (Image/Video/Text)
+            const selectedNodesList = nodes.filter(n => targetNodeIds.includes(n.id));
+            const allAreStatic = selectedNodesList.every(n => 
+                n.type === 'textNode' || n.type === 'imageNode' || n.type === 'videoNode'
+            );
+
+            if (allAreStatic && selectedNodesList.length > 0) {
+                toast.warning("Selected nodes are not runnable", {
+                    description: "Input nodes cannot be run directly. Please select a processing node (Crop, AI, etc).",
+                    duration: 3000,
+                });
+                return; // STOP HERE
+            }
+
+            // B. Check for Missing Dependencies
             let hasMissingDependencies = false;
             for (const nodeId of targetNodeIds) {
                 const inputEdges = edges.filter(e => e.target === nodeId);

@@ -49,26 +49,20 @@ function FlowContent() {
     const {screenToFlowPosition} = useReactFlow();
     const {undo, redo} = useStore(useWorkflowStore.temporal);
 
-    // 1. Get Executor Functions
     const { runWorkflow, runSelected } = useFlowExecutor();
 
-    // 2. Track Selection
     const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
     const [isHandMode, setIsHandMode] = useState(false);
 
-    // 3. Handle Selection Changes
     const onSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams) => {
         setSelectedNodes(nodes.map((node) => node.id));
     }, []);
 
-    // VALIDATION LOGIC
     const isValidConnection = useCallback(
         (connection: Edge | Connection) => {
             if (connection.source === connection.target) return false;
-
             const sourceNode = nodes.find((node) => node.id === connection.source);
             const targetNode = nodes.find((node) => node.id === connection.target);
-
             if (!sourceNode || !targetNode) return false;
 
             if (connection.targetHandle?.startsWith("image")) {
@@ -78,21 +72,17 @@ function FlowContent() {
                     sourceNode.type === "extractNode";
                 if (!isImageSource) return false;
             }
-
             if (connection.targetHandle === "prompt" || connection.targetHandle === "system-prompt") {
                 const isTextProducer = sourceNode.type === "textNode" || sourceNode.type === "llmNode";
                 if (!isTextProducer) return false;
             }
-
             if (targetNode.type === "cropNode" && connection.targetHandle === "image-in") {
                 const validCropSource = sourceNode.type === "imageNode" || sourceNode.type === "cropNode" || sourceNode.type === "extractNode";
                 if (!validCropSource) return false;
             }
-
             if (targetNode.type === "extractNode" && connection.targetHandle === "video-in") {
                 if (sourceNode.type !== "videoNode") return false;
             }
-
             const hasCycle = (node: AppNode, visited = new Set<string>()): boolean => {
                 if (visited.has(node.id)) return false;
                 visited.add(node.id);
@@ -100,9 +90,7 @@ function FlowContent() {
                 if (outgoers.some((outgoer) => outgoer.id === sourceNode.id)) return true;
                 return outgoers.some((outgoer) => hasCycle(outgoer, visited));
             };
-
             if (hasCycle(targetNode)) return false;
-
             return true;
         },
         [nodes, edges]
@@ -146,7 +134,6 @@ function FlowContent() {
             if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
             if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "z"))) { e.preventDefault(); redo(); }
             
-            // RUN SHORTCUT (Command + Enter)
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                 e.preventDefault();
                 if (selectedNodes.length > 0) {
@@ -190,9 +177,11 @@ function FlowContent() {
                     maskColor="rgba(0,0,0, 0.7)" 
                     nodeColor={() => "#dfff4f"} 
                 />
-
-                {/* 5. RUN CONTROLS PANEL */}
-                <Panel position="top-center" className="mt-4">
+                <Panel 
+                    position="top-center" 
+                    className="!absolute pointer-events-auto z-50"
+                    style={{ top: window.innerWidth < 768 ? '100px' : '16px' }}
+                >
                     <RunControls 
                         selectedCount={selectedNodes.length}
                         onRunAll={runWorkflow}

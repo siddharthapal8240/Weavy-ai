@@ -13,7 +13,14 @@ interface RunControlsProps {
 
 export default function RunControls({ selectedCount, onRunAll, onRunSelected, isRunning = false }: RunControlsProps) {
     return (
-        <div className="flex items-center gap-2 bg-[#1a1a1a]/90 backdrop-blur-md border border-white/10 p-1.5 rounded-xl shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className={cn(
+            "flex items-center gap-2 bg-[#1a1a1a]/90 backdrop-blur-md border border-white/10 p-1.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300",
+            // SIZING FIX: 
+            // - 'w-auto': Fits content (buttons), doesn't stretch to screen edges
+            // - 'max-w-[90vw]': Prevents overflow on very small screens
+            // - 'mx-auto': Centers it
+            "w-auto max-w-[90vw] mx-auto"
+        )}>
             {/* Run Selected Button (Dynamic) */}
             {selectedCount > 0 ? (
                 <>
@@ -21,13 +28,13 @@ export default function RunControls({ selectedCount, onRunAll, onRunSelected, is
                         onClick={onRunSelected}
                         disabled={isRunning}
                         className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                            "flex items-center justify-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap",
                             "bg-white/10 hover:bg-white/20 text-white border border-white/5",
                             isRunning && "opacity-50 cursor-not-allowed"
                         )}
                     >
-                        {selectedCount === 1 ? <MousePointer2 size={12} className="text-[#dfff4f]" /> : <Layers size={12} className="text-[#dfff4f]" />}
-                        Run {selectedCount === 1 ? "Node" : "Selected"} ({selectedCount})
+                        {selectedCount === 1 ? <MousePointer2 size={13} className="text-[#dfff4f]" /> : <Layers size={13} className="text-[#dfff4f]" />}
+                        <span>Run {selectedCount === 1 ? "Node" : "Selected"} ({selectedCount})</span>
                     </button>
                     <div className="w-px h-4 bg-white/10 mx-1" />
                 </>
@@ -38,13 +45,13 @@ export default function RunControls({ selectedCount, onRunAll, onRunSelected, is
                 onClick={onRunAll}
                 disabled={isRunning}
                 className={cn(
-                    "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    "flex items-center justify-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap",
                     "bg-[#dfff4f] text-black hover:bg-[#ebff70] hover:shadow-[0_0_15px_-3px_rgba(223,255,79,0.3)]",
                     isRunning && "bg-white/10 text-white/50 cursor-not-allowed shadow-none"
                 )}
             >
-                <Play size={12} fill="currentColor" />
-                {isRunning ? "Running..." : "Run Workflow"}
+                <Play size={13} fill="currentColor" />
+                <span>{isRunning ? "Running..." : "Run Workflow"}</span>
             </button>
         </div>
     );
