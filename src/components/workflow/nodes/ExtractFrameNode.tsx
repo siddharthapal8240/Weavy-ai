@@ -10,18 +10,17 @@ import { useFlowExecutor } from "@/hooks/useFlowExecutor";
 
 export default function ExtractFrameNode({ id, data, isConnectable, selected }: NodeProps<ExtractNodeType>) {
     const { updateNodeData } = useWorkflowStore();
-    const { runWorkflow } = useFlowExecutor();
+    //Destructure runNode
+    const { runNode } = useFlowExecutor();
+    
     const nodes = useNodes();
     const edges = useEdges();
 
     const areInputsReady = useMemo(() => {
         const inputEdges = edges.filter(e => e.target === id);
-        
         if (inputEdges.length === 0) return true;
-
         const inputNodeIds = inputEdges.map(e => e.source);
         const inputNodes = nodes.filter(n => inputNodeIds.includes(n.id));
-
         return inputNodes.every(n => 
             n.data.status === 'success' || n.data.status === 'idle'
         );
@@ -35,7 +34,8 @@ export default function ExtractFrameNode({ id, data, isConnectable, selected }: 
         return edges.some(edge => edge.source === id);
     }, [edges, id]);
 
-    const handleRun = () => runWorkflow(id);
+    // Call runNode with ID
+    const handleRun = () => runNode(id);
 
     const handleDownload = async () => {
         if (!data.outputUrl) return;

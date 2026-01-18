@@ -5,15 +5,14 @@ import { useReactFlow } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { startWorkflowRunAction, finishWorkflowRunAction } from "@/app/actions/historyActions";
 import { WorkflowRun, NodeExecutionResult } from "@/lib/types";
-import { toast } from "sonner";
+import { toast } from "sonner"; 
 
 export function useFlowExecutor() {
     const { nodes, edges, updateNodeData, workflowId, addHistoryEntry, updateHistoryEntry, addNodeToHistoryRun } = useWorkflowStore();
     
-    // Track execution promises to handle dependency chains efficiently
     const executionPromises = useRef<Map<string, Promise<string | null>>>(new Map());
 
-    // 1. Core Execution Logic
+    // 1. Core Recursive Execution Logic
     const executeNode = useCallback(async (nodeId: string, runId: string, allowedNodes: Set<string> | null): Promise<string | null> => {
         if (executionPromises.current.has(nodeId)) {
             return executionPromises.current.get(nodeId)!;
@@ -32,11 +31,10 @@ export function useFlowExecutor() {
                 })
             );
 
-            // --- 2. CHECK IF EXECUTION IS ALLOWED ---
+            // --- 2. CHECK IF EXECUTION IS ALLOWED (Selection Logic) ---
             const shouldExecute = allowedNodes === null || allowedNodes.has(nodeId);
 
             if (!shouldExecute) {
-                // Return existing data if skipped
                 if (node.type === "textNode") return (node.data as any).text;
                 if (node.type === "videoNode" || node.type === "imageNode") return (node.data as any).file?.url;
                 if (node.data.outputUrl) return node.data.outputUrl;
@@ -62,7 +60,6 @@ export function useFlowExecutor() {
             let outputDataLog: any = {};
 
             try {
-                // --- A. EXTRACT FRAME ---
                 if (node.type === "extractNode") {
                     const source = upstreamResults.find(r => r.handle === "video-in")?.value;
                     if (!source) throw new Error("Waiting for video input...");
@@ -82,8 +79,6 @@ export function useFlowExecutor() {
                     inputDataLog = { timestamp: node.data.timestamp, source };
                     outputDataLog = { url: resultUrl };
                 }
-
-                // --- B. CROP IMAGE ---
                 else if (node.type === "cropNode") {
                     const source = upstreamResults.find(r => r.handle === "image-in")?.value;
                     if (!source) throw new Error("Waiting for image input...");
@@ -108,8 +103,6 @@ export function useFlowExecutor() {
                     inputDataLog = { source, params: node.data };
                     outputDataLog = { url: resultUrl };
                 }
-
-                // --- C. LLM GENERATION ---
                 else if (node.type === "llmNode") {
                     let systemPrompt = node.data.systemPrompt || "";
                     let userPrompt = node.data.userPrompt || "";
@@ -174,22 +167,15 @@ export function useFlowExecutor() {
         
         if (!workflowId) return;
 
-        // --- VALIDATION LOGIC (Replaced Alert with Toast) ---
         if (scope === 'partial' || scope === 'single') {
             let hasMissingDependencies = false;
-            
             for (const nodeId of targetNodeIds) {
-                const node = nodes.find(n => n.id === nodeId);
                 const inputEdges = edges.filter(e => e.target === nodeId);
-                
                 for (const edge of inputEdges) {
                     const sourceNode = nodes.find(n => n.id === edge.source);
-                    
-                    // If input node is NOT selected AND has no data
                     if (sourceNode && !targetNodeIds.includes(sourceNode.id)) {
                         const hasData = sourceNode.data.status === 'success' || (sourceNode.data as any).outputUrl || (sourceNode.data as any).response;
                         const isStatic = sourceNode.type === 'textNode' || sourceNode.type === 'imageNode' || sourceNode.type === 'videoNode';
-                        
                         if (!hasData && !isStatic) {
                              hasMissingDependencies = true;
                              break;
@@ -197,9 +183,7 @@ export function useFlowExecutor() {
                     }
                 }
             }
-
             if (hasMissingDependencies) {
-                //User Friendly Toast instead of Alert
                 toast.error("Cannot run selected nodes", {
                     description: "Some inputs are missing. Please run the previous steps first.",
                     duration: 4000,
@@ -261,5 +245,6 @@ export function useFlowExecutor() {
     return {
         runWorkflow: () => executeRun('full', []),
         runSelected: (ids: string[]) => executeRun(ids.length === 1 ? 'single' : 'partial', ids),
+        runNode: (nodeId: string) => executeRun('single', [nodeId])
     };
 }

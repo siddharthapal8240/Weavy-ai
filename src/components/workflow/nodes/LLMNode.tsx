@@ -14,7 +14,7 @@ import {
   useReactFlow,
   useUpdateNodeInternals,
   useNodes,
-  useEdges,
+  useEdges
 } from "@xyflow/react";
 import {
   Bot,
@@ -24,9 +24,9 @@ import {
   Settings2,
   Copy,
   Check,
-  X,
   Trash2,
-  Clock,
+  X,
+  Clock, 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LLMNodeData, LLMNodeType } from "@/lib/types";
@@ -40,13 +40,13 @@ export default function LLMNode({
   selected,
 }: NodeProps<LLMNodeType>) {
   const { updateNodeData, deleteNode } = useWorkflowStore();
-  const { runWorkflow } = useFlowExecutor();
   
-  // Standard hook call
+  // Destructure runNode
+  const { runNode } = useFlowExecutor();
+  
   const updateNodeInternals = useUpdateNodeInternals();
   const { setEdges } = useReactFlow();
 
-  // Reactive state
   const nodes = useNodes();
   const edges = useEdges();
 
@@ -59,28 +59,19 @@ export default function LLMNode({
 
   // --- SMART STATUS LOGIC ---
   const areInputsReady = useMemo(() => {
-    const inputEdges = edges.filter((e) => e.target === id);
-    if (inputEdges.length === 0) return true;
-
-    const inputNodeIds = inputEdges.map((e) => e.source);
-    const inputNodes = nodes.filter((n) => inputNodeIds.includes(n.id));
-
-    return inputNodes.every(
-      (n) => n.data.status === "success" || n.data.status === "idle"
-    );
+        const inputEdges = edges.filter(e => e.target === id);
+        if (inputEdges.length === 0) return true;
+        const inputNodeIds = inputEdges.map(e => e.source);
+        const inputNodes = nodes.filter(n => inputNodeIds.includes(n.id));
+        return inputNodes.every(n => 
+            n.data.status === 'success' || n.data.status === 'idle'
+        );
   }, [nodes, edges, id]);
 
-  const isRunning =
-    (data.status === "running" || data.status === "loading") && areInputsReady;
-
-  const isPending =
-    data.status === "pending" ||
-    ((data.status === "running" || data.status === "loading") &&
-      !areInputsReady);
-
+  const isRunning = (data.status === "running" || data.status === "loading") && areInputsReady;
+  const isPending = data.status === "pending" || ((data.status === "running" || data.status === "loading") && !areInputsReady);
   const isBusy = isRunning || isPending;
 
-  // --- VISIBILITY LOGIC ---
   const isOutputConnected = useMemo(() => {
     return edges.some((edge) => edge.source === id);
   }, [edges, id]);
@@ -107,8 +98,7 @@ export default function LLMNode({
   );
 
   const handleCopy = useCallback(async () => {
-    const responseText =
-      typeof data.response === "string" ? data.response : null;
+    const responseText = typeof data.response === "string" ? data.response : null;
 
     if (data.outputs && data.outputs.length > 0) {
       const textToCopy = data.outputs[data.outputs.length - 1].content;
@@ -142,17 +132,14 @@ export default function LLMNode({
     [imageHandleCount, id, updateNodeData, setEdges]
   );
 
+  //Call runNode with ID
   const handleRun = useCallback(() => {
-    runWorkflow(id);
-  }, [id, runWorkflow]);
+    runNode(id);
+  }, [id, runNode]);
 
   const getDisplayText = (): string | null => {
     if (typeof data.response === "string") return data.response;
-    if (
-      data.outputs &&
-      Array.isArray(data.outputs) &&
-      data.outputs.length > 0
-    ) {
+    if (data.outputs && Array.isArray(data.outputs) && data.outputs.length > 0) {
       return data.outputs[data.outputs.length - 1].content;
     }
     return null;
@@ -168,25 +155,20 @@ export default function LLMNode({
           ? "border-[#dfff4f] ring-1 ring-[#dfff4f]/50"
           : "border-white/10 hover:border-white/30",
         data.status === "error" && "border-red-500 ring-1 ring-red-500/50",
-        isRunning &&
-          "animate-pulse border-[#dfff4f] shadow-[0_0_20px_rgba(223,255,79,0.3)]",
+        isRunning && "animate-pulse border-[#dfff4f] shadow-[0_0_20px_rgba(223,255,79,0.3)]",
         isPending && "border-yellow-500/30 border-dashed"
       )}
     >
       {/* Header */}
-      <div
-        className={cn(
-          "flex items-center justify-between px-3 py-2.5 border-b border-white/5 rounded-t-xl transition-colors",
-          isRunning ? "bg-[#dfff4f]/10" : "bg-[#111]"
-        )}
-      >
+      <div className={cn(
+        "flex items-center justify-between px-3 py-2.5 border-b border-white/5 rounded-t-xl transition-colors",
+        isRunning ? "bg-[#dfff4f]/10" : "bg-[#111]"
+      )}>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-white">
             {data.model || "gemini-2.5-flash"}
           </span>
-          {isPending && (
-            <Clock size={12} className="text-yellow-500 animate-pulse ml-2" />
-          )}
+          {isPending && <Clock size={12} className="text-yellow-500 animate-pulse ml-2" />}
         </div>
         <div className="relative" ref={menuRef}>
           <button
@@ -252,15 +234,7 @@ export default function LLMNode({
                 onClick={handleCopy}
                 className="flex items-center gap-1 px-2 py-1 text-[10px] text-white/60 hover:text-white/90 hover:bg-white/5 rounded transition-colors"
               >
-                {copied ? (
-                  <>
-                    <Check size={11} /> Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={11} /> Copy
-                  </>
-                )}
+                {copied ? <><Check size={11} /> Copied!</> : <><Copy size={11} /> Copy</>}
               </button>
             </div>
           )}
@@ -271,11 +245,7 @@ export default function LLMNode({
             {isBusy ? (
               <div className="flex flex-col items-center justify-center h-full gap-2">
                 <Loader2 size={20} className="animate-spin text-white/30" />
-                {isPending && (
-                  <span className="text-[10px] text-white/30 animate-pulse">
-                    Waiting for inputs...
-                  </span>
-                )}
+                {isPending && <span className="text-[10px] text-white/30 animate-pulse">Waiting for inputs...</span>}
               </div>
             ) : data.status === "success" && displayText ? (
               <div className="w-full text-xs text-white/80 font-mono leading-relaxed whitespace-pre-wrap break-words">
@@ -326,91 +296,25 @@ export default function LLMNode({
 
       {/* Handles */}
       <div className="absolute -left-2" style={{ top: "30%" }}>
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="system-prompt"
-          isConnectable={isConnectable}
-          onMouseEnter={() => setHoveredHandle("system-prompt")}
-          onMouseLeave={() => setHoveredHandle(null)}
-          className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#15803d] hover:!bg-[#15803d] transition-colors"
-        />
-        {hoveredHandle === "system-prompt" && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#15803d] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none border border-[#15803d]/20">
-            System Prompt
-          </div>
-        )}
+        <Handle type="target" position={Position.Left} id="system-prompt" isConnectable={isConnectable} onMouseEnter={() => setHoveredHandle("system-prompt")} onMouseLeave={() => setHoveredHandle(null)} className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#15803d] hover:!bg-[#15803d] transition-colors" />
+        {hoveredHandle === "system-prompt" && <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#15803d] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none border border-[#15803d]/20">System Prompt</div>}
       </div>
-
       <div className="absolute -left-2" style={{ top: "45%" }}>
-        <Handle
-          type="target"
-          position={Position.Left}
-          id="prompt"
-          isConnectable={isConnectable}
-          onMouseEnter={() => setHoveredHandle("prompt")}
-          onMouseLeave={() => setHoveredHandle(null)}
-          className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#d97706] hover:!bg-[#d97706] transition-colors"
-        />
-        {hoveredHandle === "prompt" && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#d97706] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none border border-[#d97706]/20">
-            Prompt
-          </div>
-        )}
+        <Handle type="target" position={Position.Left} id="prompt" isConnectable={isConnectable} onMouseEnter={() => setHoveredHandle("prompt")} onMouseLeave={() => setHoveredHandle(null)} className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#d97706] hover:!bg-[#d97706] transition-colors" />
+        {hoveredHandle === "prompt" && <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#d97706] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none border border-[#d97706]/20">Prompt</div>}
       </div>
-
       {Array.from({ length: imageHandleCount }).map((_, index) => {
         const topPosition = 60 + index * 10;
         return (
-          <div
-            key={`image-${index}`}
-            className="absolute -left-2 flex items-center"
-            style={{ top: `${topPosition}%` }}
-          >
-            <Handle
-              type="target"
-              position={Position.Left}
-              id={`image-${index}`}
-              isConnectable={isConnectable}
-              onMouseEnter={() => setHoveredHandle(`image-${index}`)}
-              onMouseLeave={() => setHoveredHandle(null)}
-              className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#2563eb] hover:!bg-[#2563eb] transition-colors"
-            />
-            {hoveredHandle === `image-${index}` && (
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#2563eb] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none flex items-center gap-2 border border-[#2563eb]/20">
-                Image {index + 1}
-                {imageHandleCount > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveImageInput(index);
-                    }}
-                    className="hover:text-red-400 transition-colors"
-                  >
-                    <X size={10} />
-                  </button>
-                )}
-              </div>
-            )}
+          <div key={`image-${index}`} className="absolute -left-2 flex items-center" style={{ top: `${topPosition}%` }}>
+            <Handle type="target" position={Position.Left} id={`image-${index}`} isConnectable={isConnectable} onMouseEnter={() => setHoveredHandle(`image-${index}`)} onMouseLeave={() => setHoveredHandle(null)} className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#2563eb] hover:!bg-[#2563eb] transition-colors" />
+            {hoveredHandle === `image-${index}` && <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#2563eb] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none flex items-center gap-2 border border-[#2563eb]/20">Image {index + 1}{imageHandleCount > 1 && <button onClick={(e) => { e.stopPropagation(); handleRemoveImageInput(index); }} className="hover:text-red-400 transition-colors"><X size={10} /></button>}</div>}
           </div>
         );
       })}
-
       <div className="absolute -right-2 top-1/2 -translate-y-1/2">
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="response"
-          isConnectable={isConnectable}
-          onMouseEnter={() => setHoveredHandle("response")}
-          onMouseLeave={() => setHoveredHandle(null)}
-          className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#dfff4f] hover:!bg-[#dfff4f] transition-colors"
-        />
-        {hoveredHandle === "response" && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#dfff4f] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none border border-[#dfff4f]/20">
-            Response Output
-          </div>
-        )}
+        <Handle type="source" position={Position.Right} id="response" isConnectable={isConnectable} onMouseEnter={() => setHoveredHandle("response")} onMouseLeave={() => setHoveredHandle(null)} className="!w-3.5 !h-3.5 !bg-[#1a1a1a] !border-[3px] !border-[#dfff4f] hover:!bg-[#dfff4f] transition-colors" />
+        {hoveredHandle === "response" && <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/90 text-[#dfff4f] text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 pointer-events-none border border-[#dfff4f]/20">Response Output</div>}
       </div>
     </div>
   );
