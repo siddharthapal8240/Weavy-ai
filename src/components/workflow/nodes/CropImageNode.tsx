@@ -14,7 +14,6 @@ export default function CropImageNode({ id, data, isConnectable, selected }: Nod
     const nodes = useNodes();
     const edges = useEdges();
 
-    // --- SMART STATUS LOGIC ---
     const areInputsReady = useMemo(() => {
         const inputEdges = edges.filter(e => e.target === id);
         
@@ -32,7 +31,6 @@ export default function CropImageNode({ id, data, isConnectable, selected }: Nod
     const isPending = data.status === "pending" || ((data.status === "running" || data.status === "loading") && !areInputsReady);
     const isBusy = isRunning || isPending;
 
-    // --- VISIBILITY LOGIC ---
     const isOutputConnected = useMemo(() => {
         return edges.some(edge => edge.source === id);
     }, [edges, id]);
@@ -61,11 +59,7 @@ export default function CropImageNode({ id, data, isConnectable, selected }: Nod
         <div className={cn(
             "rounded-xl border bg-[#1a1a1a] min-w-[280px] max-w-[400px] shadow-xl transition-all relative",
             selected ? "border-[#dfff4f] ring-1 ring-[#dfff4f]/50" : "border-white/10",
-            
-            // GLOW
             isRunning && "animate-pulse border-[#dfff4f] shadow-[0_0_20px_rgba(223,255,79,0.3)]",
-            
-            // PENDING
             isPending && "border-yellow-500/50 border-dashed opacity-80"
         )}>
             <div className={cn(

@@ -25,17 +25,12 @@ export default function ExtractFrameNode({ id, data, isConnectable, selected }: 
         return inputNodes.every(n => 
             n.data.status === 'success' || n.data.status === 'idle'
         );
-    }, [nodes, edges, id]); // Dependencies ensure this updates immediately when parent finishes
+    }, [nodes, edges, id]);
 
-    // Active Glow: Must be technically running/loading AND have inputs ready
     const isRunning = (data.status === "running" || data.status === "loading") && areInputsReady;
-    
-    // Visual Pending: Explicit pending OR technically running but blocked by inputs
     const isPending = data.status === "pending" || ((data.status === "running" || data.status === "loading") && !areInputsReady);
-    
     const isBusy = isRunning || isPending;
 
-    // --- VISIBILITY LOGIC ---
     const isOutputConnected = useMemo(() => {
         return edges.some(edge => edge.source === id);
     }, [edges, id]);
@@ -64,11 +59,7 @@ export default function ExtractFrameNode({ id, data, isConnectable, selected }: 
         <div className={cn(
             "rounded-xl border bg-[#1a1a1a] min-w-[280px] shadow-xl transition-all relative",
             selected ? "border-[#dfff4f] ring-1 ring-[#dfff4f]/50" : "border-white/10",
-            
-            // GLOW EFFECT
             isRunning && "animate-pulse border-[#dfff4f] shadow-[0_0_20px_rgba(223,255,79,0.3)]",
-            
-            // WAITING STATE
             isPending && "border-yellow-500/50 border-dashed opacity-80"
         )}>
             <div className={cn(
