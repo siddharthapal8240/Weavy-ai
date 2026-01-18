@@ -12,6 +12,7 @@ import {useWorkflowStore} from "@/store/workflowStore";
 import {loadWorkflowAction} from "@/app/actions/workflowActions";
 import {DEMO_WORKFLOWS} from "@/lib/demoWorkflows";
 import {useAutoSave} from "@/hooks/useAutoSave";
+import { Toaster } from "sonner";
 
 const FlowEditor = dynamic(() => import("@/components/workflow/FlowEditor"), {
     ssr: false,
@@ -110,6 +111,7 @@ export default function EditorPage() {
 
     return (
         <div className="flex flex-col h-screen w-full bg-[#09090b] text-white overflow-hidden">
+            <Toaster position="top-center" richColors theme="dark" />
             {/* Header */}
             <Header />
 

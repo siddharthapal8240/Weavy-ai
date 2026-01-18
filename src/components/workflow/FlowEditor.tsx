@@ -11,7 +11,8 @@ import {
     getOutgoers, 
     Edge, 
     Panel, 
-    ConnectionLineType
+    ConnectionLineType,
+    OnSelectionChangeParams
 } from "@xyflow/react";
 import AnimatedEdge from "./edges/AnimatedEdge";
 import "@xyflow/react/dist/style.css";
@@ -24,8 +25,10 @@ import ExtractFrameNode from "@/components/workflow/nodes/ExtractFrameNode";
 
 import {useWorkflowStore} from "@/store/workflowStore";
 import CanvasControls from "./CanvasControls";
+import RunControls from "@/hooks/RunControls"; 
 import {useStore} from "zustand";
 import {AppNode} from "@/lib/types";
+import { useFlowExecutor } from "@/hooks/useFlowExecutor";
 
 const nodeTypes = {
     textNode: TextNode,
@@ -46,8 +49,17 @@ function FlowContent() {
     const {screenToFlowPosition} = useReactFlow();
     const {undo, redo} = useStore(useWorkflowStore.temporal);
 
-    // UI State for Hand/Pan Mode
+    // 1. Get Executor Functions
+    const { runWorkflow, runSelected } = useFlowExecutor();
+
+    // 2. Track Selection
+    const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
     const [isHandMode, setIsHandMode] = useState(false);
+
+    // 3. Handle Selection Changes
+    const onSelectionChange = useCallback(({ nodes }: OnSelectionChangeParams) => {
+        setSelectedNodes(nodes.map((node) => node.id));
+    }, []);
 
     // VALIDATION LOGIC
     const isValidConnection = useCallback(
@@ -59,34 +71,28 @@ function FlowContent() {
 
             if (!sourceNode || !targetNode) return false;
 
-            // 1. LLM Image Inputs
             if (connection.targetHandle?.startsWith("image")) {
                 const isImageSource = 
                     sourceNode.type === "imageNode" || 
                     sourceNode.type === "cropNode" || 
                     sourceNode.type === "extractNode";
-                
                 if (!isImageSource) return false;
             }
 
-            // 2. LLM Text Inputs
             if (connection.targetHandle === "prompt" || connection.targetHandle === "system-prompt") {
                 const isTextProducer = sourceNode.type === "textNode" || sourceNode.type === "llmNode";
                 if (!isTextProducer) return false;
             }
 
-            // 3. Crop Node Logic: Only accepts Image inputs
             if (targetNode.type === "cropNode" && connection.targetHandle === "image-in") {
                 const validCropSource = sourceNode.type === "imageNode" || sourceNode.type === "cropNode" || sourceNode.type === "extractNode";
                 if (!validCropSource) return false;
             }
 
-            // 4. Extract Node Logic: Only accepts Video inputs
             if (targetNode.type === "extractNode" && connection.targetHandle === "video-in") {
                 if (sourceNode.type !== "videoNode") return false;
             }
 
-            // Cycle Detection
             const hasCycle = (node: AppNode, visited = new Set<string>()): boolean => {
                 if (visited.has(node.id)) return false;
                 visited.add(node.id);
@@ -118,55 +124,17 @@ function FlowContent() {
             let newNode: AppNode;
 
             if (type === "textNode") {
-                newNode = { 
-                    id: newNodeId, 
-                    type: "textNode", 
-                    position, 
-                    data: {label: "Text Input", text: "", status: "idle"} 
-                };
+                newNode = { id: newNodeId, type: "textNode", position, data: {label: "Text Input", text: "", status: "idle"} };
             } else if (type === "imageNode") {
-                newNode = { 
-                    id: newNodeId, 
-                    type: "imageNode", 
-                    position, 
-                    data: {label: "Image Input", status: "idle", inputType: "upload"} 
-                };
+                newNode = { id: newNodeId, type: "imageNode", position, data: {label: "Image Input", status: "idle", inputType: "upload"} };
             } else if (type === "videoNode") {
-                newNode = { 
-                    id: newNodeId, 
-                    type: "videoNode", 
-                    position, 
-                    data: { label: "Video Input", status: "idle" } 
-                };
+                newNode = { id: newNodeId, type: "videoNode", position, data: { label: "Video Input", status: "idle" } };
             } else if (type === "cropNode") {
-                newNode = { 
-                    id: newNodeId, 
-                    type: "cropNode", 
-                    position, 
-                    data: { label: "Crop Image", status: "idle", cropX: 0, cropY: 0, cropWidth: 100, cropHeight: 100 } 
-                };
+                newNode = { id: newNodeId, type: "cropNode", position, data: { label: "Crop Image", status: "idle", cropX: 0, cropY: 0, cropWidth: 100, cropHeight: 100 } };
             } else if (type === "extractNode") {
-                newNode = { 
-                    id: newNodeId, 
-                    type: "extractNode", 
-                    position, 
-                    data: { label: "Extract Frame", status: "idle", timestamp: 0 } 
-                };
+                newNode = { id: newNodeId, type: "extractNode", position, data: { label: "Extract Frame", status: "idle", timestamp: 0 } };
             } else {
-                newNode = { 
-                    id: newNodeId, 
-                    type: "llmNode", 
-                    position, 
-                    data: { 
-                        label: "Gemini Worker", 
-                        status: "idle", 
-                        model: "gemini-2.5-flash", 
-                        temperature: 0.7, 
-                        viewMode: "single", 
-                        outputs: [], 
-                        imageHandleCount: 1 
-                    } 
-                };
+                newNode = { id: newNodeId, type: "llmNode", position, data: { label: "Gemini Worker", status: "idle", model: "gemini-2.5-flash", temperature: 0.7, viewMode: "single", outputs: [], imageHandleCount: 1 } };
             }
             addNode(newNode);
         },
@@ -175,18 +143,22 @@ function FlowContent() {
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { 
-                e.preventDefault(); 
-                undo(); 
-            }
-            if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "z"))) { 
-                e.preventDefault(); 
-                redo(); 
+            if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+            if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "z"))) { e.preventDefault(); redo(); }
+            
+            // RUN SHORTCUT (Command + Enter)
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (selectedNodes.length > 0) {
+                    runSelected(selectedNodes);
+                } else {
+                    runWorkflow();
+                }
             }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [undo, redo]);
+    }, [undo, redo, selectedNodes, runSelected, runWorkflow]);
 
     return (
         <div className="flex-1 relative h-full" ref={reactFlowWrapper}>
@@ -199,6 +171,7 @@ function FlowContent() {
                 isValidConnection={isValidConnection}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
+                onSelectionChange={onSelectionChange}
                 connectionLineStyle={{ stroke: '#fff', strokeWidth: 2 }}
                 connectionLineType={ConnectionLineType.Bezier}
                 nodeTypes={nodeTypes}
@@ -217,6 +190,16 @@ function FlowContent() {
                     maskColor="rgba(0,0,0, 0.7)" 
                     nodeColor={() => "#dfff4f"} 
                 />
+
+                {/* 5. RUN CONTROLS PANEL */}
+                <Panel position="top-center" className="mt-4">
+                    <RunControls 
+                        selectedCount={selectedNodes.length}
+                        onRunAll={runWorkflow}
+                        onRunSelected={() => runSelected(selectedNodes)}
+                        isRunning={nodes.some(n => n.data.status === 'loading' || n.data.status === 'running')}
+                    />
+                </Panel>
 
                 <Panel position="bottom-center" className="mb-8">
                     <CanvasControls 

@@ -5,34 +5,56 @@ import { useReactFlow } from "@xyflow/react";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { startWorkflowRunAction, finishWorkflowRunAction } from "@/app/actions/historyActions";
 import { WorkflowRun, NodeExecutionResult } from "@/lib/types";
+import { toast } from "sonner";
 
 export function useFlowExecutor() {
     const { nodes, edges, updateNodeData, workflowId, addHistoryEntry, updateHistoryEntry, addNodeToHistoryRun } = useWorkflowStore();
     
-    // Use a ref to track in-flight execution promises for parallel branches
+    // Track execution promises to handle dependency chains efficiently
     const executionPromises = useRef<Map<string, Promise<string | null>>>(new Map());
 
-    const executeNode = useCallback(async (nodeId: string, runId: string): Promise<string | null> => {
-        // 1. If this node is already executing/executed in this run, return its existing promise
+    // 1. Core Execution Logic
+    const executeNode = useCallback(async (nodeId: string, runId: string, allowedNodes: Set<string> | null): Promise<string | null> => {
         if (executionPromises.current.has(nodeId)) {
             return executionPromises.current.get(nodeId)!;
         }
 
         const nodePromise = (async () => {
             const node = nodes.find((n) => n.id === nodeId);
-            if (!node) throw new Error(`Node ${nodeId} not found`);
+            if (!node) throw new Error(`Node not found`);
 
-            // --- BASE CASES ---
+            // --- 1. RESOLVE DEPENDENCIES FIRST ---
+            const upstreamEdges = edges.filter((e) => e.target === nodeId);
+            const upstreamResults = await Promise.all(
+                upstreamEdges.map(async (edge) => {
+                    const result = await executeNode(edge.source, runId, allowedNodes);
+                    return { handle: edge.targetHandle, value: result };
+                })
+            );
+
+            // --- 2. CHECK IF EXECUTION IS ALLOWED ---
+            const shouldExecute = allowedNodes === null || allowedNodes.has(nodeId);
+
+            if (!shouldExecute) {
+                // Return existing data if skipped
+                if (node.type === "textNode") return (node.data as any).text;
+                if (node.type === "videoNode" || node.type === "imageNode") return (node.data as any).file?.url;
+                if (node.data.outputUrl) return node.data.outputUrl;
+                if (node.data.response) return node.data.response;
+                return null;
+            }
+
+            // --- 3. BASE CASES ---
             if (node.type === "videoNode" || node.type === "imageNode") {
                 const url = (node.data as any).file?.url;
-                if (!url) throw new Error(`${node.type} "${node.data.label}" has no file`);
+                if (!url) throw new Error("Input file is missing");
                 return url;
             }
             if (node.type === "textNode") {
                 return (node.data as any).text || "";
             }
 
-            // --- PROCESSING START ---
+            // --- 4. START PROCESSING ---
             updateNodeData(nodeId, { status: "loading", errorMessage: undefined });
             const startTime = Date.now();
             let resultUrl: string | null = null;
@@ -40,22 +62,10 @@ export function useFlowExecutor() {
             let outputDataLog: any = {};
 
             try {
-                // Parallel Execution of Dependencies
-                // Instead of awaiting them one-by-one, we initiate all upstream executions simultaneously
-                const upstreamEdges = edges.filter((e) => e.target === nodeId);
-                
-                // Trigger all parent nodes at once (Parallelism happens here)
-                const upstreamResults = await Promise.all(
-                    upstreamEdges.map(async (edge) => {
-                        const result = await executeNode(edge.source, runId);
-                        return { handle: edge.targetHandle, value: result };
-                    })
-                );
-
                 // --- A. EXTRACT FRAME ---
                 if (node.type === "extractNode") {
                     const source = upstreamResults.find(r => r.handle === "video-in")?.value;
-                    if (!source) throw new Error("Source video not ready");
+                    if (!source) throw new Error("Waiting for video input...");
 
                     const response = await fetch("/api/media/process", {
                         method: "POST",
@@ -67,7 +77,7 @@ export function useFlowExecutor() {
                         }),
                     });
                     const res = await response.json();
-                    if (!res.success) throw new Error(res.error);
+                    if (!res.success) throw new Error(res.error || "Frame extraction failed");
                     resultUrl = res.url;
                     inputDataLog = { timestamp: node.data.timestamp, source };
                     outputDataLog = { url: resultUrl };
@@ -76,7 +86,7 @@ export function useFlowExecutor() {
                 // --- B. CROP IMAGE ---
                 else if (node.type === "cropNode") {
                     const source = upstreamResults.find(r => r.handle === "image-in")?.value;
-                    if (!source) throw new Error("Source image not ready");
+                    if (!source) throw new Error("Waiting for image input...");
 
                     const response = await fetch("/api/media/process", {
                         method: "POST",
@@ -93,7 +103,7 @@ export function useFlowExecutor() {
                         }),
                     });
                     const res = await response.json();
-                    if (!res.success) throw new Error(res.error);
+                    if (!res.success) throw new Error(res.error || "Crop failed");
                     resultUrl = res.url;
                     inputDataLog = { source, params: node.data };
                     outputDataLog = { url: resultUrl };
@@ -123,13 +133,12 @@ export function useFlowExecutor() {
                         }),
                     });
                     const res = await response.json();
-                    if (!res.success) throw new Error(res.error);
+                    if (!res.success) throw new Error(res.error || "AI generation failed");
                     resultUrl = res.text;
                     outputDataLog = { text: res.text };
                     updateNodeData(nodeId, { response: res.text });
                 }
 
-                // --- PERSISTENCE & UI UPDATE ---
                 const duration = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
                 updateNodeData(nodeId, { status: "success", outputUrl: resultUrl });
 
@@ -158,46 +167,99 @@ export function useFlowExecutor() {
         return nodePromise;
     }, [nodes, edges, updateNodeData, workflowId, addNodeToHistoryRun]);
 
-    const runWorkflow = useCallback(async (startNodeId: string) => {
-        // Reset execution map for new run
+
+    // 2. Main Execution Handler
+    const executeRun = useCallback(async (scope: 'full' | 'partial' | 'single', targetNodeIds: string[]) => {
         executionPromises.current.clear();
         
-        let currentRunId: string = ""; 
-        const startTime = Date.now();
+        if (!workflowId) return;
 
-        try {
-            if (workflowId) {
-                const startRes = await startWorkflowRunAction(workflowId, "Chain");
-                if (startRes.success && startRes.runId) {
-                    currentRunId = startRes.runId;
-                    addHistoryEntry({
-                        id: currentRunId,
-                        workflowId,
-                        timestamp: startRes.timestamp,
-                        status: 'running',
-                        duration: '...',
-                        triggerType: 'Chain', 
-                        nodeExecutions: []
-                    });
+        // --- VALIDATION LOGIC (Replaced Alert with Toast) ---
+        if (scope === 'partial' || scope === 'single') {
+            let hasMissingDependencies = false;
+            
+            for (const nodeId of targetNodeIds) {
+                const node = nodes.find(n => n.id === nodeId);
+                const inputEdges = edges.filter(e => e.target === nodeId);
+                
+                for (const edge of inputEdges) {
+                    const sourceNode = nodes.find(n => n.id === edge.source);
+                    
+                    // If input node is NOT selected AND has no data
+                    if (sourceNode && !targetNodeIds.includes(sourceNode.id)) {
+                        const hasData = sourceNode.data.status === 'success' || (sourceNode.data as any).outputUrl || (sourceNode.data as any).response;
+                        const isStatic = sourceNode.type === 'textNode' || sourceNode.type === 'imageNode' || sourceNode.type === 'videoNode';
+                        
+                        if (!hasData && !isStatic) {
+                             hasMissingDependencies = true;
+                             break;
+                        }
+                    }
                 }
             }
 
-            await executeNode(startNodeId, currentRunId);
+            if (hasMissingDependencies) {
+                //User Friendly Toast instead of Alert
+                toast.error("Cannot run selected nodes", {
+                    description: "Some inputs are missing. Please run the previous steps first.",
+                    duration: 4000,
+                });
+                return;
+            }
+        }
 
-            if (workflowId && currentRunId) {
+        const triggerMap = { 'full': 'Chain', 'partial': 'Partial', 'single': 'Single Node' };
+        const triggerType = triggerMap[scope];
+        let currentRunId = ""; 
+        const startTime = Date.now();
+
+        try {
+            const startRes = await startWorkflowRunAction(workflowId, triggerType);
+            if (startRes.success && startRes.runId) {
+                currentRunId = startRes.runId;
+                addHistoryEntry({
+                    id: currentRunId,
+                    workflowId,
+                    timestamp: startRes.timestamp,
+                    status: 'running',
+                    duration: '...',
+                    triggerType: triggerType as any,
+                    nodeExecutions: []
+                });
+            }
+
+            let nodesToRun = targetNodeIds;
+            let allowedSet: Set<string> | null = new Set(targetNodeIds);
+
+            if (scope === 'full') {
+                allowedSet = null; 
+                const sourceIds = new Set(edges.map(e => e.source));
+                const leafNodes = nodes.filter(n => !sourceIds.has(n.id));
+                nodesToRun = leafNodes.length > 0 ? leafNodes.map(n => n.id) : nodes.map(n => n.id);
+            }
+
+            await Promise.all(nodesToRun.map(id => executeNode(id, currentRunId, allowedSet)));
+
+            if (currentRunId) {
                 const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
                 await finishWorkflowRunAction(currentRunId, "success", totalDuration, []);
                 updateHistoryEntry({ id: currentRunId, status: 'success', duration: totalDuration });
+                toast.success("Workflow completed successfully");
             }
 
         } catch (error) {
-            if (workflowId && currentRunId) {
+            console.error("Execution failed", error);
+            if (currentRunId) {
                 const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1) + "s";
                 await finishWorkflowRunAction(currentRunId, "failed", totalDuration, []);
                 updateHistoryEntry({ id: currentRunId, status: 'failed', duration: totalDuration });
+                toast.error("Workflow run failed");
             }
         }
-    }, [executeNode, workflowId, addHistoryEntry, updateHistoryEntry]);
+    }, [executeNode, workflowId, addHistoryEntry, updateHistoryEntry, nodes, edges]);
 
-    return { runWorkflow };
+    return {
+        runWorkflow: () => executeRun('full', []),
+        runSelected: (ids: string[]) => executeRun(ids.length === 1 ? 'single' : 'partial', ids),
+    };
 }

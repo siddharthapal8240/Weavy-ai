@@ -25,7 +25,7 @@ export type HeroNode = Node<HeroNodeData>;
 // Common properties shared by ALL nodes in the editor
 export interface BaseNodeData extends Record<string, unknown> {
     label?: string;
-    status: 'idle' | 'loading' | 'success' | 'error';
+    status: 'idle' | 'loading' | 'success' | 'error' | 'pending' | 'running' | 'failed';
     errorMessage?: string;
 
     // UI State
@@ -76,7 +76,7 @@ export interface ExtractNodeData extends BaseNodeData {
 // -- LLM / Generation Node --
 export interface LLMNodeData extends BaseNodeData {
     // Configuration
-    model: 'gemini-2.5-flash';
+    model: 'gemini-2.5-flash' | 'gemini-2.0-flash' | 'gemini-1.5-flash' | 'gemini-1.5-pro';
     temperature: number;
     systemInstruction?: string;
     maxTokens?: number;
