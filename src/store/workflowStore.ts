@@ -46,7 +46,7 @@ type WorkflowState = {
     updateHistoryEntry: (updatedRun: Partial<WorkflowRun> & { id: string }) => void;
     addNodeToHistoryRun: (runId: string, node: NodeExecutionResult) => void;
     loadHistory: (workflowId: string) => Promise<void>; 
-    clearHistory: () => void; // NEW ACTION
+    clearHistory: () => void;
 };
 
 // Initial Data
@@ -158,6 +158,41 @@ export const useWorkflowStore = create<WorkflowState>()(
                     // Fetch fresh history from DB
                     const res = await getWorkflowHistoryAction(workflowId);
                     if (res.success && res.history) {
+                        
+                        // --- SYNC LOGIC: Update Canvas Nodes from DB Result ---
+                        const latestRun = res.history[0]; // Most recent run
+                        if (latestRun && latestRun.nodeExecutions.length > 0) {
+                            const currentNodes = get().nodes;
+                            
+                            // Map execution results back to canvas nodes
+                            latestRun.nodeExecutions.forEach((exec) => {
+                                const node = currentNodes.find((n) => n.id === exec.nodeId);
+                                if (node) {
+                                    // Prepare update object
+                                    const updatePayload: any = { status: exec.status };
+                                    if (exec.errorMessage) updatePayload.errorMessage = exec.errorMessage;
+
+                                    // Parse Output Data
+                                    if (exec.outputData) {
+                                        const output = exec.outputData as any;
+                                        if (output.text) updatePayload.response = output.text;
+                                        if (output.url) updatePayload.outputUrl = output.url;
+                                        // Handle generic wrapper from workflow.ts
+                                        if (output.result) {
+                                            if (typeof output.result === 'string' && output.result.startsWith('http')) {
+                                                updatePayload.outputUrl = output.result;
+                                            } else {
+                                                updatePayload.response = output.result;
+                                            }
+                                        }
+                                    }
+                                    // Apply update
+                                    get().updateNodeData(exec.nodeId, updatePayload);
+                                }
+                            });
+                        }
+                        // --- END SYNC LOGIC ---
+
                         set({ history: res.history });
                     } else {
                         set({ history: [] });
@@ -170,10 +205,9 @@ export const useWorkflowStore = create<WorkflowState>()(
                 name: 'workflow-storage',
                 storage: createJSONStorage(() => localStorage),
                 version: 3, 
-                // FIX: EXCLUDE 'history' from being saved to localStorage
                 partialize: (state) => {
                     const { nodes, edges, workflowId, isHistoryOpen } = state;
-                    return { nodes, edges, workflowId, isHistoryOpen }; // History is intentionally missing
+                    return { nodes, edges, workflowId, isHistoryOpen };
                 },
             }
         ),
@@ -184,7 +218,6 @@ export const useWorkflowStore = create<WorkflowState>()(
                 return { nodes, edges, workflowId };
             },
             equality: (pastState, currentState) => {
-                // ... (Existing equality logic)
                 const stripVolatile = (state: Partial<WorkflowState>) => {
                     if (!state.nodes || !state.edges) return {};
                     return {

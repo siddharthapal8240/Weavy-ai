@@ -1,7 +1,7 @@
 import { task } from "@trigger.dev/sdk/v3";
 import crypto from "crypto";
 
-// --- HELPER: Sign and Run Transloadit Assembly ---
+// --- Sign and Run Transloadit Assembly ---
 async function runTransloadit(steps: any, inputUrl: string) {
   const authKey = process.env.NEXT_PUBLIC_TRANSLOADIT_KEY;
   const authSecret = process.env.TRANSLOADIT_SECRET;
@@ -12,8 +12,8 @@ async function runTransloadit(steps: any, inputUrl: string) {
     auth: { key: authKey, expires: new Date(Date.now() + 60 * 60 * 1000).toISOString() },
     steps: {
       ...steps,
-      ":original": { robot: "/upload/handle", result: true }, // Required boilerplate
-      "imported": { robot: "/http/import", url: inputUrl },   // Import the file
+      ":original": { robot: "/upload/handle", result: true },
+      "imported": { robot: "/http/import", url: inputUrl },
     },
   };
 
@@ -42,7 +42,7 @@ async function runTransloadit(steps: any, inputUrl: string) {
   const statusUrl = assembly.assembly_ssl_url;
 
   while (!finalUrl) {
-    await new Promise((r) => setTimeout(r, 1000)); // Wait 1s
+    await new Promise((r) => setTimeout(r, 1000)); 
     const statusRes = await fetch(statusUrl);
     const status = await statusRes.json();
 

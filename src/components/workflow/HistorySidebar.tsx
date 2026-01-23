@@ -16,6 +16,43 @@ import { cn } from "@/lib/utils";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { RunStatus } from "@/lib/types";
 
+// --- CLEAN ERROR MESSAGES ---
+const cleanErrorMessage = (error: string | null | undefined) => {
+    if (!error) return null;
+    
+    let message = error;
+
+    // 1. Try to parse JSON error wrappers
+    if (message.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(message);
+            message = parsed.message || parsed.error?.message || message;
+        } catch (e) {
+            // If parsing fails, use original string
+        }
+    }
+
+    // 2. User-Friendly Mappings
+    if (message.includes("429") || message.includes("Too Many Requests") || message.includes("Quota")) {
+        return "⚠️ Rate limit exceeded. Please try again in a few moments.";
+    }
+    if (message.includes("SAFETY") || message.includes("blocked")) {
+        return "⚠️ Content blocked by AI safety filters. Modify your prompt.";
+    }
+    if (message.includes("Timeout") || message.includes("timed out")) {
+        return "⏱️ The task timed out. Please try again.";
+    }
+    if (message.includes("Parent node failed")) {
+        return "Execution cancelled: Parent node failed.";
+    }
+
+    if (message.length > 100) {
+        return "❌ An unexpected system error occurred.";
+    }
+
+    return message;
+};
+
 const StatusIcon = ({ status }: { status: RunStatus }) => {
     switch (status) {
         case 'success': return <CheckCircle2 size={13} className="text-[#dfff4f]" />;
@@ -56,9 +93,8 @@ export default function HistorySidebar() {
         }
     }, [isHistoryOpen, workflowId, loadHistory]);
 
-    // Friendly Error Logic
+    // Friendly Error Logic for the Main Summary Box
     const getFriendlyErrorMessage = (run: any) => {
-        // 1. Check if a specific node failed
         const failedNode = run.nodeExecutions?.find((n: any) => 
             n.status?.toLowerCase() === 'failed'
         );
@@ -66,31 +102,30 @@ export default function HistorySidebar() {
         if (failedNode) {
             return (
                 <span>
-                    The <span className="font-bold text-red-300">{failedNode.nodeLabel}</span> node encountered an error.
+                    The <span className="font-bold text-red-300">{failedNode.nodeLabel}</span> node failed.
                     <br/>
-                    <span className="opacity-70">Please check your inputs and try again.</span>
+                    <span className="opacity-70">{cleanErrorMessage(failedNode.errorMessage)}</span>
                 </span>
             );
         }
 
-        // 2. Fallback to system error
+        // Fallback to system error
         const systemError = run.errorMessage || run.error;
         if (systemError && systemError !== "Unknown system error occurred") {
              return (
                 <span>
-                    {systemError}
+                    {cleanErrorMessage(systemError)}
                     <br/>
                     <span className="opacity-70">Please review the workflow configuration.</span>
                 </span>
             );
         }
 
-        // 3. Generic Fallback
         return (
             <span>
-                The <span className="font-bold text-red-300">Gemini / LLM Node</span> failed to process.
+                Workflow encountered an error.
                 <br/>
-                <span className="opacity-70">This usually happens due to connection issues or invalid prompts. Please try again.</span>
+                <span className="opacity-70">Please check your inputs and try again.</span>
             </span>
         );
     };
@@ -160,9 +195,8 @@ export default function HistorySidebar() {
                                 <StatusBadge status={run.status} />
                             </div>
 
-                            {/* Bottom Row: Duration Only (Chain Removed) */}
+                            {/* Bottom Row: Duration Only */}
                             <div className="pl-6 flex items-center gap-3 text-[10px] text-white/40 font-medium">
-                                {/* REMOVED THE TRIGGER TYPE BADGE HERE */}
                                 <span>{run.duration}</span>
                                 {run.nodeExecutions?.length > 0 && (
                                     <span>• {run.nodeExecutions.length} nodes</span>
@@ -191,39 +225,48 @@ export default function HistorySidebar() {
                                 )}
 
                                 {/* Node List */}
-                                {(run.nodeExecutions || []).map((node, idx) => (
-                                    <div key={idx} className="relative group/node">
-                                        <div className="absolute -left-[14px] top-2.5 w-3 h-px bg-white/10"></div>
-                                        
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-[11px] font-mono text-white/90">
-                                                {node.nodeLabel}
-                                            </span>
-                                            <StatusIcon status={node.status} />
-                                            <span className="text-[10px] text-white/30 font-mono">
-                                                {node.duration}
-                                            </span>
-                                        </div>
+                                {(run.nodeExecutions || []).map((node, idx) => {
+                                    const outputData = node.outputData as any;
+                                    const outputValue = outputData?.result || outputData?.text || outputData?.url;
 
-                                        <div className="pl-0 text-[10px] font-mono space-y-1">
-                                            {node.errorMessage && (
-                                                <div className="flex items-start gap-2 text-red-400 bg-red-950/20 p-1.5 rounded border border-red-500/20 opacity-80">
-                                                    <span className="shrink-0">└─ Log:</span>
-                                                    <span className="break-words leading-tight">{node.errorMessage}</span>
-                                                </div>
-                                            )}
+                                    return (
+                                        <div key={idx} className="relative group/node">
+                                            <div className="absolute -left-[14px] top-2.5 w-3 h-px bg-white/10"></div>
+                                            
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-[11px] font-mono text-white/90">
+                                                    {node.nodeLabel}
+                                                </span>
+                                                <StatusIcon status={node.status} />
+                                                <span className="text-[10px] text-white/30 font-mono">
+                                                    {node.duration}
+                                                </span>
+                                            </div>
 
-                                            {node.outputData && (node.outputData as any).text && (
-                                                <div className="flex items-start gap-2 text-white/50">
-                                                    <span className="shrink-0 text-white/30">└─ Output:</span>
-                                                    <span className="break-words line-clamp-2 italic text-white/60">
-                                                        "{(node.outputData as any).text}"
-                                                    </span>
-                                                </div>
-                                            )}
+                                            <div className="pl-0 text-[10px] font-mono space-y-1">
+                                                {/* Error Message */}
+                                                {node.errorMessage && (
+                                                    <div className="flex items-start gap-2 text-red-400 bg-red-950/20 p-1.5 rounded border border-red-500/20 opacity-80">
+                                                        <span className="shrink-0">└─ Log:</span>
+                                                        <span className="break-words leading-tight">
+                                                            {cleanErrorMessage(node.errorMessage)}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* Success Output (Restored & Fixed) */}
+                                                {node.status === 'success' && outputValue && (
+                                                    <div className="flex items-start gap-2 text-white/50">
+                                                        <span className="shrink-0 text-white/30">└─ Output:</span>
+                                                        <span className="break-words line-clamp-2 italic text-white/60">
+                                                            "{typeof outputValue === 'string' && outputValue.startsWith('http') ? 'File URL' : outputValue}"
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
